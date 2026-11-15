@@ -1,0 +1,13 @@
+decision_year,date,futures_contract,contract_name,leg,settle_raw,source,may_futures_price
+2020,2020-10-15,ZCK21,May 2021 corn,Oct (open hedge),409-2,Barchart settlement,4.0925
+2020,2021-04-15,ZCK21,May 2021 corn,Apr (close hedge),590-0,Barchart settlement,5.9
+2021,2021-10-15,ZCK22,May 2022 corn,Oct (open hedge),538-6,Barchart settlement,5.3875
+2021,2022-04-14,ZCK22,May 2022 corn,Apr (close hedge),790-2,Barchart settlement,7.9025
+2022,2022-10-14,ZCK23,May 2023 corn,Oct (open hedge),697-2,Barchart settlement,6.9725
+2022,2023-04-14,ZCK23,May 2023 corn,Apr (close hedge),666-2,Barchart settlement,6.6625
+2023,2023-10-13,ZCK24,May 2024 corn,Oct (open hedge),516-4,Barchart settlement,5.165
+2023,2024-04-15,ZCK24,May 2024 corn,Apr (close hedge),431-4,Barchart settlement,4.315
+2024,2024-10-15,ZCK25,May 2025 corn,Oct (open hedge),426-0,Barchart settlement,4.26
+2024,2025-04-15,ZCK25,May 2025 corn,Apr (close hedge),481-2,Barchart settlement,4.8125
+2025,2025-10-15,ZCK26,May 2026 corn,Oct (open hedge),441-0,Barchart settlement,4.41
+2025,2026-04-15,ZCK26,May 2026 corn,Apr (close hedge),451-2,Barchart settlement,4.5125
