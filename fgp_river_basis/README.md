@@ -3,6 +3,9 @@
 **ACCY 512 class project.** Separate from the main corn store-or-sell project in the
 [repository root](../README.md); it does not change that project's plan, roadmap or evaluation.
 
+**Walkthrough:** [walkthrough.ipynb](walkthrough.ipynb) shows each step, from the raw USDA and USGS
+pulls to the regression results, with a table or chart for each.
+
 ## Research question
 
 After Oct 1, 2022, did corn basis at Illinois River barge-loading elevators fall relative to
@@ -73,5 +76,6 @@ fgp_river_basis/
 ├── notebooks/                  # fgp_01 ... fgp_05
 ├── outputs/fgp_basis_chart.png
 ├── processing_log.md
-└── README.md
+├── README.md
+└── walkthrough.ipynb
 ```

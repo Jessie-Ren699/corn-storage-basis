@@ -7,6 +7,9 @@ model make that call better than "always sell at harvest"?
 The answer is measured through **basis gain** against a single futures contract,
 compared with the cost of storage plus the opportunity cost of capital.
 
+**Walkthrough:** [notebooks/00_walkthrough.ipynb](notebooks/00_walkthrough.ipynb) shows every pipeline step,
+from the raw USDA pull to the walk-forward scoreboard, with a table or chart for each.
+
 ## Plan
 
 - **Location:** one Central Illinois region (USDA report **3192**). See *To be determined*.
