@@ -166,7 +166,6 @@ corn_analysis/
 ├── docs/         # reference documents
 ├── notebooks/    # numbered steps: 01_pull_data, 02_baseline, ...
 ├── outputs/      # figures, tables, final results
-├── fgp_river_basis/  # separate ACCY 512 side project (own README)
 ├── .env          # API key (git-ignored)
 ├── .env.example  # template showing required variable names
 ├── .gitignore
@@ -189,4 +188,4 @@ corn_analysis/
 
 ## Side project
 
-The ACCY 512 class project on Illinois River basis (separate from this plan) lives in its own folder: [fgp_river_basis/](fgp_river_basis/README.md).
+The ACCY 512 class project on Illinois River basis (separate from this plan) now has its own repository: [river-basis-did](https://github.com/Jessie-Ren699/river-basis-did).

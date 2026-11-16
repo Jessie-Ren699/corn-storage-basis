@@ -371,3 +371,14 @@ the FGP parts are now in `fgp_river_basis/processing_log.md`.)*
 - **FGP log entries** (2026-11-11) moved to `fgp_river_basis/processing_log.md`; the `03_build_silver.py`
   file-list fix stays here as its own entry.
 - Main-project data, scripts and outputs: not touched.
+
+### 2026-11-15: FGP project moved to its own repository (no main-project data changed)
+
+- **New repository:** https://github.com/Jessie-Ren699/river-basis-did, created with
+  `git subtree split --prefix=fgp_river_basis` (keeps the 3 commits after the folder move). Pushed and verified
+  before anything was removed here; its rerun of `fgp_03` -> `fgp_05` gave byte-identical outputs.
+- **Removed here:** `fgp_river_basis/` (`git rm -r`). The files remain in this repository's git history.
+- **Kept:** `data/raw/3192_2021-10.csv` and `3192_2022-10.csv` (used by `03_build_silver.py`). Exact copies
+  (SHA-256 checked) are in the new repository. All 12 files listed in `03_build_silver.py` are present.
+- **README:** the side-project line now links to the new repository; `fgp_river_basis/` removed from the folder layout.
+- Earlier entries that mention `fgp_river_basis/` describe the layout at that time.
