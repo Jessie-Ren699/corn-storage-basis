@@ -8,9 +8,8 @@ pulls to the regression results, with a table or chart for each.
 
 ## Research question
 
-After Oct 1, 2022, did corn basis at Illinois River barge-loading elevators fall relative to
-country elevators, compared with the same window in 2021, and how does that relate to
-Mississippi River flow?
+Did the 2022 Mississippi River low water cause corn basis to drop more in river areas than
+inland areas, and by how much?
 
 ## Data sources
 
@@ -20,6 +19,9 @@ Mississippi River flow?
 | River flow | USGS site **07032000**, Mississippi River at Memphis, daily mean discharge (parameter 00060), via [USGS Water Services](https://waterservices.usgs.gov/nwis/dv/); site page: [USGS-07032000](https://waterdata.usgs.gov/monitoring-location/USGS-07032000/) | `river_flow_cfs`, `flow_100k` |
 
 USGS has no daily river stage (feet) at this site, so flow is used instead.
+
+**Shared raw files:** the Oct 2021 and Oct 2022 USDA pulls (`3192_2021-10.csv`, `3192_2022-10.csv`)
+are also used by the main project, so they stay in the root `data/raw/`, not in `fgp_river_basis/data/raw/`.
 
 ## Run order
 
@@ -33,9 +35,8 @@ python fgp_river_basis/notebooks/fgp_04_chart.py            # basis-by-region ch
 python fgp_river_basis/notebooks/fgp_05_models.py           # regressions (prints only)
 ```
 
-`fgp_01` and `fgp_02` never overwrite an existing raw file. The October 2021 and 2022 pulls
-(`3192_2021-10.csv`, `3192_2022-10.csv`) are shared with the main project, so they stay in the
-root `data/raw/`; the other raw files are in `fgp_river_basis/data/raw/`.
+`fgp_01` and `fgp_02` never overwrite an existing raw file. `fgp_03` reads the two shared Oct files
+from the root `data/raw/` and everything else from `fgp_river_basis/data/raw/`.
 
 ## Panel
 
@@ -51,10 +52,12 @@ root `data/raw/`; the other raw files are in `fgp_river_basis/data/raw/`.
 
 ## Method: difference-in-differences
 
-- **Model B (main):** `basis_cents ~ River * Y2022 * Post`. The key term `River:Y2022:Post` asks how much
-  more (or less) river basis changed after Oct 1 in 2022 than in 2021, relative to country elevators.
-- **Model A (alternative):** `basis_cents ~ River + flow_100k + River:flow_100k`. The key term asks how
-  river basis moves with Mississippi flow, relative to country elevators.
+- **Main model (Model B):** basis ~ River × Post × Y2022, with all lower-order terms
+  (code: `basis_cents ~ River * Y2022 * Post`; the order of the terms does not change the model).
+  The key coefficient β on `River:Y2022:Post` measures how much more river-area basis changed after
+  Oct 1 in 2022 than in 2021, relative to inland (country elevator) areas. **Expected: β < 0.**
+- **Robustness check (Model A):** river flow as a continuous variable,
+  `basis_cents ~ River + flow_100k + River:flow_100k` (flow in units of 100,000 cfs).
 - OLS with HC1 robust standard errors, plus Newey-West (HAC, 5 trading days) standard errors within
   each region x year series.
 
