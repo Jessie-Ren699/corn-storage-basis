@@ -49,8 +49,6 @@ Store if        Target_hat > Hurdle
 | May corn futures | CBOT settlements (ZCK21-ZCK26), read from [Barchart](https://www.barchart.com/futures/quotes/ZCK26/overview) | 12 settlements (Oct 15 and Apr 15, 6 contracts) typed by hand as raw quotes (e.g. `583-2`) | Basis on both dates; hedge result |
 | Interest rate | [FRED, series DTB6](https://fred.stlouisfed.org/series/DTB6) (6-month T-bill, secondary market, discount basis) | Download | InterestCost |
 | Storage costs | [farmdoc daily](https://farmdocdaily.illinois.edu/2025/10/annual-cost-of-storing-us-corn-and-soybeans-since-1973.html) (physical storage cost series); on-farm low case from Iowa Farm Bureau | Typed by hand into `data/raw/storage_costs.csv`, with source per row | StorageCost (low / mid / high cases) |
-| River flow (side project) | [USGS Water Services](https://waterservices.usgs.gov/), site 07032000 (Mississippi River at Memphis), daily mean flow | API download | FGP river basis panel |
-
 The MyMarketNews API is documented in USDA's [MyMarketNews API guide](https://mymarketnews.ams.usda.gov/mymarketnews-api).
 
 ## Units
@@ -165,6 +163,7 @@ corn_analysis/
 ├── docs/         # reference documents
 ├── notebooks/    # numbered steps: 01_pull_data, 02_baseline, ...
 ├── outputs/      # figures, tables, final results
+├── fgp_river_basis/  # separate ACCY 512 side project (own README)
 ├── .env          # API key (git-ignored)
 ├── .env.example  # template showing required variable names
 ├── .gitignore
@@ -185,20 +184,6 @@ corn_analysis/
 - If Oct 15 or Apr 15 is not a trading day, use the nearest **prior** trading day and
   record which day was used.
 
-## Side project: FGP river basis panel (separate from the plan above)
+## Side project
 
-A class-project panel, not part of the Oct 15 / Apr 15 storage question. It does not
-change the plan, roadmap or evaluation above.
-
-- **Output:** `data/fgp/river_basis_panel.csv`, one row = region x trading day,
-  Aug-Nov 2021 and 2022, kept only on dates where all 4 regions quote December (Z) futures.
-- **Regions (report 3192):** North Illinois River, South Illinois River (River = 1,
-  barge loading), North Central, South Central (River = 0, country elevators).
-- **Columns:** date, region, basis_cents, futures_month, River, Y2022, Post, river_flow_cfs.
-- **Units exception:** basis is kept in **cents/bu** here (the main project uses $/bu).
-- **River:** USGS 07032000 Mississippi River at Memphis, daily mean flow (cfs); USGS has no
-  daily stage in feet at this site.
-- **Limitation:** no drought index (US Drought Monitor skipped for now).
-- **Scripts:** `notebooks/fgp_01_pull_3192.py` -> `fgp_02_pull_usgs_flow.py` -> `fgp_03_build_panel.py` -> `fgp_04_chart.py`.
-- **Post:** 1 from Oct 1 in both years.
-- **Main model:** Model B, `basis_cents ~ River * Y2022 * Post` (key term River:Y2022:Post). Model A (flow) is the alternative. Code: `notebooks/fgp_05_models.py`.
+The ACCY 512 class project on Illinois River basis (separate from this plan) lives in its own folder: [fgp_river_basis/](fgp_river_basis/README.md).

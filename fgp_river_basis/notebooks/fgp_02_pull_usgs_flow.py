@@ -3,14 +3,14 @@
 Site 07032000, parameter 00060 = discharge (cubic feet per second), statistic 00003 = daily mean.
 USGS has no daily river stage (feet) at this site, so flow is used instead (user decision 2026-11-11).
 
-Output: data/raw/usgs_07032000_flow_2021-08_2022-11.rdb, saved exactly as USGS sends it.
+Output: fgp_river_basis/data/raw/usgs_07032000_flow_2021-08_2022-11.rdb, saved exactly as USGS sends it.
 Never overwrites an existing raw file.
 """
 import os
 
 import requests
 
-OUT = "data/raw/usgs_07032000_flow_2021-08_2022-11.rdb"
+OUT = "fgp_river_basis/data/raw/usgs_07032000_flow_2021-08_2022-11.rdb"
 URL = "https://waterservices.usgs.gov/nwis/dv/"
 PARAMS = {"sites": "07032000", "parameterCd": "00060", "statCd": "00003",
           "startDT": "2021-08-01", "endDT": "2022-11-30", "format": "rdb"}

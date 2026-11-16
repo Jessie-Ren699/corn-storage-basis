@@ -1,14 +1,14 @@
 """FGP side project, step 01: pull USDA report 3192 (Illinois Grain Bids), one month per request.
 
-Output: data/raw/3192_YYYY-MM.csv (same format as the earlier pulls)
+Output: fgp_river_basis/data/raw/3192_YYYY-MM.csv (same format as the earlier pulls in data/raw/)
 
 Method check (2026-11-11): re-pulling Oct 2021 with this exact request gave a file
 identical to the existing data/raw/3192_2021-10.csv (976 rows x 55 columns).
 
 Run from the project folder:
-    python notebooks/fgp_01_pull_3192.py
+    python fgp_river_basis/notebooks/fgp_01_pull_3192.py
 
-Never overwrites an existing raw file (data/raw/ is evidence).
+Never overwrites an existing raw file (raw files are evidence).
 The API key is read from .env and is never printed.
 """
 import calendar
@@ -25,7 +25,7 @@ MONTHS = [(2021, 8), (2021, 9), (2021, 11), (2022, 8), (2022, 9), (2022, 11)]  #
 key = dotenv_values(".env")["API_KEY"]
 
 for year, month in MONTHS:
-    out = f"data/raw/3192_{year}-{month:02d}.csv"
+    out = f"fgp_river_basis/data/raw/3192_{year}-{month:02d}.csv"
     if os.path.exists(out):
         print(f"{out}: already exists, NOT pulled again")
         continue

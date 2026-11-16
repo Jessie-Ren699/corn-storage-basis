@@ -1,6 +1,6 @@
 """FGP side project, step 05: OLS models with robust standard errors.
 
-Input : data/fgp/river_basis_panel.csv
+Input : fgp_river_basis/data/river_basis_panel.csv
 Output: printed coefficient tables only (no files written)
 
 Model B (main, user decision 2026-11-11): basis_cents ~ River * Y2022 * Post
@@ -18,7 +18,7 @@ Standard errors:
 import pandas as pd
 import statsmodels.formula.api as smf
 
-IN = "data/fgp/river_basis_panel.csv"
+IN = "fgp_river_basis/data/river_basis_panel.csv"
 MAXLAGS = 5
 MODELS = {  # name -> (formula, key term)
     "Model B (main)": ("basis_cents ~ River * Y2022 * Post", "River:Y2022:Post"),

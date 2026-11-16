@@ -1,12 +1,13 @@
 """FGP side project, step 03: build the river basis panel. One row = region x trading day.
 
-Inputs : data/raw/3192_{2021,2022}-{08,09,10,11}.csv (8 files)
-         data/raw/usgs_07032000_flow_2021-08_2022-11.rdb
-Output : data/fgp/river_basis_panel.csv
+Inputs : data/raw/3192_{2021,2022}-10.csv (Oct, shared with the main project)
+         fgp_river_basis/data/raw/3192_{2021,2022}-{08,09,11}.csv (FGP only)
+         fgp_river_basis/data/raw/usgs_07032000_flow_2021-08_2022-11.rdb
+Output : fgp_river_basis/data/river_basis_panel.csv
 
 Run from the project folder:
-    python notebooks/fgp_03_build_panel.py              # build + summary, no save if output exists
-    python notebooks/fgp_03_build_panel.py --overwrite  # replace an existing output file
+    python fgp_river_basis/notebooks/fgp_03_build_panel.py              # build + summary, no save if output exists
+    python fgp_river_basis/notebooks/fgp_03_build_panel.py --overwrite  # replace an existing output file
 
 Decisions (user, 2026-11-11):
 - 4 regions; River = 1 for North and South Illinois River (barge loading elevators).
@@ -19,7 +20,7 @@ Decisions (user, 2026-11-11):
   date is Sept 15 itself.
 - river_flow_cfs = USGS Memphis daily mean flow (one value per day, same for all regions).
 - Drought index skipped for now (listed as a limitation).
-data/raw/ is only read, never changed.
+Raw files are only read, never changed.
 """
 import os
 import sys
@@ -28,9 +29,12 @@ import pandas as pd
 
 YEARS = [2021, 2022]
 MONTHS = [8, 9, 10, 11]
-RAW_3192 = [f"data/raw/3192_{y}-{m:02d}.csv" for y in YEARS for m in MONTHS]
-RAW_USGS = "data/raw/usgs_07032000_flow_2021-08_2022-11.rdb"
-OUT = "data/fgp/river_basis_panel.csv"
+# Oct pulls are also used by the main project, so they stay in data/raw/ (moved 2026-11-15).
+SHARED_RAW = "data/raw"
+FGP_RAW = "fgp_river_basis/data/raw"
+RAW_3192 = [f"{SHARED_RAW if m == 10 else FGP_RAW}/3192_{y}-{m:02d}.csv" for y in YEARS for m in MONTHS]
+RAW_USGS = f"{FGP_RAW}/usgs_07032000_flow_2021-08_2022-11.rdb"
+OUT = "fgp_river_basis/data/river_basis_panel.csv"
 MISSING = "MISSING"
 Z = "December (Z)"
 

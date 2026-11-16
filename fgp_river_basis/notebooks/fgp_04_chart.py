@@ -1,7 +1,7 @@
 """FGP side project, step 04: basis-by-region chart.
 
-Input : data/fgp/river_basis_panel.csv
-Output: outputs/fgp_basis_chart.png
+Input : fgp_river_basis/data/river_basis_panel.csv
+Output: fgp_river_basis/outputs/fgp_basis_chart.png
 
 Colors: default categorical palette, slots 1-4, checked with the colorblind validator
 (all checks pass). Two colors are low-contrast on white, so every line is labeled directly.
@@ -14,8 +14,8 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import pandas as pd
 
-IN = "data/fgp/river_basis_panel.csv"
-OUT = "outputs/fgp_basis_chart.png"
+IN = "fgp_river_basis/data/river_basis_panel.csv"
+OUT = "fgp_river_basis/outputs/fgp_basis_chart.png"
 COLORS = {"North Illinois River": "#2a78d6", "South Illinois River": "#eb6834",
           "North Central": "#1baf7a", "South Central": "#eda100"}
 

@@ -248,81 +248,15 @@ New entries go below, newest last: date, what changed, files, row counts, checks
   the Raw vs Clean counts are unchanged.
 - **Result:** pooled slope 0.41, R² 0.67 (n = 12). The per-region values are unchanged.
 
-### 2026-11-11: FGP side project, river basis panel built
+### 2026-11-11: 03 file list fixed (after the FGP pulls)
 
-- **Scope:** separate class side project (user decision). The main plan is unchanged.
-- **New raw files (pulled, never edited):**
-  - USDA 3192, "Report Detail" section, one month per request
-    (method check: re-pulling Oct 2021 gave a file identical to the existing `3192_2021-10.csv`):
-    `3192_2021-08.csv` 1,074 rows; `3192_2021-09.csv` 1,029; `3192_2021-11.csv` 992;
-    `3192_2022-08.csv` 1,127; `3192_2022-09.csv` 1,062; `3192_2022-11.csv` 960 (all 55 cols).
-  - `usgs_07032000_flow_2021-08_2022-11.rdb`: USGS Memphis daily mean flow, 487 days.
-- **Output:** `data/fgp/river_basis_panel.csv`, 448 rows (112 dates x 4 regions), 8 cols, 0 MISSING.
-- **Units exception (user decision):** `basis_cents` is in cents/bu, for this side project only.
-  Everywhere else, prices stay in $/bu.
-- **Rows dropped:**
-  - 29 empty `¢/Bu` twin rows (no basis or price; each has a real row for the same date x region).
-  - 55 of 167 trading days where not all 4 regions quote December (Z) on both the low and high bid:
-    Aug and early Sep (September contract or mixed), and 2021-11-30 (North Central starts the roll to March).
-- **December switch:** first all-December date 2021-09-01 and 2022-09-15.
-  Post starts Sep 15 in both years (Sep 15 is not before the switch).
-  **Flag:** this leaves 2022 with 0 pre-period (Post = 0) rows.
-- **Not done:** drought index (skipped, listed as a limitation).
-- **Side effect:** `03_build_silver.py` expects exactly 12 files matching `3192_20*.csv`; there are now 18,
-  so it will stop at its first check (nothing is overwritten) until its file list is fixed.
+*(Split out on 2026-11-15 from the mixed entry "FGP Post rule changed; 03 file list fixed; FGP chart saved";
+the FGP parts are now in `fgp_river_basis/processing_log.md`.)*
 
-### 2026-11-11: FGP Post rule changed; 03 file list fixed; FGP chart saved
-
-1. **Post rule (user choice, option b):** Post = 1 from **Oct 1 in both years** (was Sep 15).
-   `fgp_03_build_panel.py --overwrite` rerun: still 448 rows, 0 MISSING; only `Post` changed (96 rows),
-   all other columns identical to the previous file (backup in the session scratch folder).
-   Post = 0 / Post = 1 rows: 2021 84 / 156; 2022 48 / 160.
-   Oct 1, 2022 was a Saturday, so the first 2022 Post = 1 trading day is Oct 3.
-2. **`03_build_silver.py`:** the 12 Oct/Apr raw files are now listed by name instead of
-   matched with `3192_20*.csv` (the FGP pulls had raised the match count to 18).
-   Rerun with `--overwrite`: 3,024 rows, output **byte-for-byte identical** to the previous
-   `clean/corn_bids_current.csv`. Steps 04-08 do not need a rerun.
-3. **New chart:** `notebooks/fgp_04_chart.py` -> `outputs/fgp_basis_chart.png`
-   (basis by region, 2021 and 2022 side by side, dotted line at Oct 1).
-
-### 2026-11-11: FGP flow_100k column added; first OLS models
-
-- **Data change:** `fgp_03_build_panel.py` now adds `flow_100k = river_flow_cfs / 100,000`.
-  Rerun with `--overwrite`: 448 rows, 9 cols, 0 MISSING. All old columns are identical to the
-  previous file (backup in the session scratch folder). `flow_100k` 1.47 to 5.25 (mean 2.905).
-- **Note:** the copy at `~/Desktop/ACCY 512/river_basis_panel.csv` (made earlier today) is the
-  old 8-column version; it was not updated.
-- **Models:** `notebooks/fgp_05_models.py` (prints only, no files written). OLS, HC1 robust SEs, n = 448.
-  - Model A: `basis_cents ~ River + flow_100k + River:flow_100k`. R² 0.166.
-    River:flow_100k = **1.575** cents per 100k cfs (SE 0.880, p = 0.074, 95% CI -0.15 to 3.30).
-    flow_100k = 3.460 (SE 0.532). River = -1.899 (SE 2.765).
-  - Model B: `basis_cents ~ River * Y2022 * Post`. R² 0.218.
-    River:Y2022:Post = **-20.035** cents (SE 4.181, p < 0.001).
-- **Check (not saved):** Model A with SEs clustered by date: River:flow_100k SE 0.913, p = 0.084.
-- **Flags:** HC1 does not allow for day-to-day correlation in basis, so the SEs are likely too small.
-  Flow barely overlaps between years (2021: 2.67 to 5.25; 2022: 1.47 to 3.08) and falls through
-  the season (correlation with date order -0.66), so the flow terms also pick up year and season effects.
-
-### 2026-11-11: FGP Desktop copy replaced; Newey-West SEs; Model B is now the main model
-
-1. **Desktop copy:** `~/Desktop/ACCY 512/FInal Project/river_basis_panel.csv` (the user had moved it
-   into `FInal Project`) was checked to be the old 8-column file, then replaced with the 9-column
-   project file (byte-for-byte identical, 448 rows).
-2. **Newey-West (HAC) SEs, maxlags = 5,** added to `fgp_05_models.py`. Applied within each
-   region x year series (statsmodels `hac-panel`, 8 series), so 5 lags = 5 trading days of one region.
-   Coefficients are unchanged; only the SEs change.
-
-   | Model | Term | coef | SE HC1 (p) | SE Newey-West (p) |
-   |---|---|---|---|---|
-   | B (main) | River:Y2022:Post | -20.035 | 4.181 (0.000) | 8.369 (0.017) |
-   | A (alternative) | River:flow_100k | 1.575 | 0.880 (0.074) | 1.872 (0.400) |
-
-   Comparison only: plain row-order HAC (5 rows, about 1 trading day) gives SE 8.334 (p 0.016) and
-   1.856 (p 0.396), so the conclusions do not depend on which version is used.
-3. **Main model:** Model B (`basis_cents ~ River * Y2022 * Post`) is now the main model (user decision);
-   Model A (flow) is the alternative. Script labels and README updated. Replaces the "Model A (main)"
-   label in the previous entry.
-
+- **`03_build_silver.py`:** the 12 Oct/Apr raw files are now listed by name instead of
+  matched with `3192_20*.csv` (the FGP pulls had raised the match count to 18).
+  Rerun with `--overwrite`: 3,024 rows, output **byte-for-byte identical** to the previous
+  `clean/corn_bids_current.csv`. Steps 04-08 do not need a rerun.
 ### 2026-11-13: storage cost cases added to gold (06 → 07 → 08 rerun)
 
 - **New raw file (user-approved hand entry):** `data/raw/storage_costs.csv`, 6 rows × 7 cols
@@ -425,3 +359,15 @@ New entries go below, newest last: date, what changed, files, row counts, checks
 - **Note:** the regression had the lower MAE but the worse low-case decisions. Its round-1 slope was negative
   (fitted on 6 points), so it forecast 2023 too low and said "sell" in 2023, missing +19.9¢ in total.
 - **Files written:** `outputs/walk_forward_predictions.csv` (6 rows), `outputs/scoreboard.csv` (12 rows).
+
+### 2026-11-15: FGP side project moved to `fgp_river_basis/` (no data values changed)
+
+- **Moved with `git mv`** (history kept): the 5 `fgp_*.py` scripts, `data/fgp/river_basis_panel.csv`,
+  `outputs/fgp_basis_chart.png`, and the 7 FGP-only raw files (`3192_2021/2022-08, -09, -11`,
+  `usgs_07032000_flow_2021-08_2022-11.rdb`) into `fgp_river_basis/data/raw/`.
+- **Raw files unchanged:** SHA-256 checksums of all 7 moved raw files match before and after the move.
+- **Stay in `data/raw/`:** `3192_2021-10.csv` and `3192_2022-10.csv`, used by both projects
+  (`03_build_silver.py` and `fgp_03_build_panel.py`). All 12 files listed in `03_build_silver.py` are present.
+- **FGP log entries** (2026-11-11) moved to `fgp_river_basis/processing_log.md`; the `03_build_silver.py`
+  file-list fix stays here as its own entry.
+- Main-project data, scripts and outputs: not touched.
