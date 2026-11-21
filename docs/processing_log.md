@@ -382,3 +382,29 @@ the FGP parts are now in `fgp_river_basis/processing_log.md`.)*
   (SHA-256 checked) are in the new repository. All 12 files listed in `03_build_silver.py` are present.
 - **README:** the side-project line now links to the new repository; `fgp_river_basis/` removed from the folder layout.
 - Earlier entries that mention `fgp_river_basis/` describe the layout at that time.
+
+### 2026-11-21: USDA grain bids pulled for 5 more states (raw only, no cleaning)
+
+- **Goal (user):** Oct and Apr cash bids for IL, IA, NE, SD, MN, IN. The plan was Oct 2010 → Apr 2026, but the
+  MyMarketNews API has no bid detail before mid-2020 (headers from 2020-02-24, detail from 2020-07/08; Indiana from
+  2020-11-10). The user approved **Oct 2020 → Apr 2026** (12 Oct/Apr months, decision years 2020-2025).
+- **Reports:** IA 2850 (Iowa Daily Cash Grain Bids), NE 3225 (Nebraska Daily Elevator Grain Bids), SD 3186 (South Dakota
+  Daily Grain Bids), MN 3049 (Southern Minnesota Daily Grain Bids; user chose 3049 only, not the barge report 3043),
+  IN 3463 (Indiana Grain Bids). IL 3192: the existing `data/raw/3192_*.csv` files were **not re-pulled or copied**,
+  only listed in the manifest.
+- **Pull method (also how the IL files were made):** MARS API v1.2, `reports/<id>/Report Detail`,
+  `q=report_begin_date=MM/01/YYYY:MM/<last day>/YYYY`, one month per request; results saved with
+  `pd.DataFrame(results).to_csv(index=False)`, nothing changed. Re-pulling IL Oct 2020 this way gave a file
+  **byte-identical** to `data/raw/3192_2020-10.csv`. Every request returned all its rows (well under the 100,000 cap).
+  The pull script is in the session scratch folder (not in the repo).
+- **New files:** `data/raw/usda_bids/<STATE>/<report_id>_<YYYY-MM>.csv`, 59 files, 27,472 rows, 55 columns each
+  (same columns as 3192), plus `data/raw/usda_bids/manifest.csv` (72 rows: `file`, `rows`, `sha256`, `state`,
+  `report_id`, `month`, `status`; includes the 12 IL files).
+- **Rows by state (12 months):** IL 12,486 (existing), IA 3,750, NE 5,598, SD 5,383, MN 639, IN 12,102.
+- **Missing:** IN 2020-10: API returned 0 rows, so no file was saved (manifest says MISSING).
+- **Flags for cleaning:**
+  - IN 2021-04, 2021-10, 2022-04 are weekly (4 report days); the last report on or before the 15th is the 13th, 12th and
+    13th, not the futures dates. All other state-months have a report on the decision date (15th or the prior trading day).
+  - MN from 2025-04 also reports forward bids (`current = No`), so its rows double; spot bids stay ~21-23 per month.
+  - MN has one region (South); IN adds Barge Loading and Terminal elevators; NE and SD are Country Elevators only.
+- **Checks:** existing `data/raw/*.csv` checksums unchanged; no file overwritten; API key read from `.env`, not printed.
