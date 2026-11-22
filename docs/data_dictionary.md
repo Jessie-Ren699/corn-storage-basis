@@ -12,7 +12,7 @@ unless the column name ends in `_cents`. Blank values are NULL and never filled.
 | may_futures | one May corn futures settlement on one hedge date | `date` | `04_clean_futures.py`; loaded by `06_build_db.py` |
 | tbill_decision | the T-bill rate on one decision date | `decision_date` | `05_tbill_rates.py`; loaded by `06_build_db.py` |
 | calendar | one calendar day | `date` | `06_build_db.py` (generated) |
-| gold_yearly | one region in one decision year | (`decision_year`, `region`) | `07_build_gold.py` → `data/gold/gold_yearly.csv` and the db table |
+| gold_yearly | one region in one decision year | (`decision_year`, `region_id`) | `07_build_gold.py` → `data/gold/gold_yearly.csv` and the db table |
 | storage_costs (input file, not a db table) | one decision year's storage cost cases | `decision_year` | typed by hand into `data/raw/storage_costs.csv`; read by `07_build_gold.py` |
 
 ## corn_bids_current
@@ -23,7 +23,7 @@ IA 2850, NE 3225, SD 3186, MN 3049 and IN 3463, Oct and Apr months, Oct 2020 to 
 Apr 2021). The raw files are listed in `data/raw/usda_bids/manifest.csv`. It supplies the cash side of
 basis. 9,935 rows (IL 3,024, IA 1,771, NE 1,750, SD 1,256, MN 255, IN 1,879). Only Yellow corn for
 delivery now is kept, and the 8 empty Illinois `¢/Bu` rows were dropped (see `processing_log.md`).
-The gold table uses Illinois only.
+The gold table uses the Country Elevators / Truck bids of every region.
 
 **Primary key:** (`date`, `state`, `region`, `buyer_type`, `transport_mode`)
 
@@ -99,24 +99,32 @@ has no business content. It lets the database reject any date that doesn't exist
 
 The analysis table: for each region and decision year, everything needed to judge
 "store or sell". It holds the October and April prices, how much the gap between futures
-and cash narrowed while storing, and the cost of waiting. Covers Country Elevators in North Central
-and South Central, 2020-2025 (12 rows). Saved both as the db table and as
+and cash narrowed while storing, and the cost of waiting. Covers Country Elevators bidding for truck delivery in every region of the six states
+(34 regions), decision years 2020-2025: 194 rows (IL 42, IA 36, NE 42, SD 30, MN 6, IN 38). 10 region-years with no bid
+within 7 days are dropped (all Indiana; see `processing_log.md`). Saved both as the db table and as
 `data/gold/gold_yearly.csv`.
 
-**Primary key:** (`decision_year`, `region`)
+**Primary key:** (`decision_year`, `region_id`)
 
 | Column | Meaning |
 |---|---|
 | decision_year | The harvest year of the decision (2020-2025). |
-| region | `North Central` or `South Central`. |
+| region_id | `state` + " " + `region`, e.g. `IL North Central`. Unique, because region names repeat across states. |
+| state | `IL`, `IA`, `NE`, `SD`, `MN` or `IN`. |
+| region | The USDA region within the state, e.g. `North Central`. |
 | buyer_type | Always `Country Elevators`, the buyers a farmer would actually deliver to. |
-| oct_date | The Oct decision date. |
-| oct_cash | Local cash bid on `oct_date`: what selling at harvest would pay. |
+| transport_mode | Always `Truck`. |
+| oct_date | The Oct decision date (the futures date). |
+| oct_bid_date | The date of the cash bid used: `oct_date`, or the nearest earlier report within 7 days if there was none that day. |
+| oct_bid_date_lag_days | `oct_date` − `oct_bid_date` in days (0 = bid on the futures date; at most 7). |
+| oct_cash | Local cash bid on `oct_bid_date`: what selling at harvest would pay. |
 | oct_futures | May futures on `oct_date`: the price the hedge locks in. |
-| apr_date | The Apr exit date. |
-| apr_cash | Local cash bid on `apr_date`: what the stored corn sells for. |
+| apr_date | The Apr exit date (the futures date). |
+| apr_bid_date | The date of the April cash bid used (same rule as `oct_bid_date`). |
+| apr_bid_date_lag_days | `apr_date` − `apr_bid_date` in days. |
+| apr_cash | Local cash bid on `apr_bid_date`: what the stored corn sells for. |
 | apr_futures | The same May contract on `apr_date`: where the hedge is closed. |
-| rate_decimal | T-bill rate on `oct_date`, from `tbill_decision`. |
+| rate_decimal | T-bill rate on `oct_date`, from `tbill_decision`. The same for every region. |
 | gap_oct_cents | How far cash sits below futures in October, in cents: (`oct_futures` − `oct_cash`) × 100. This is X. |
 | gap_apr_cents | The same gap in April. |
 | gap_closed_cents | How much the gap narrowed while storing: `gap_oct_cents` − `gap_apr_cents`. This is Y, the gain from a hedged storage, equal to the README's Target. |
@@ -160,7 +168,7 @@ you open a connection, or they are not enforced.
 | corn_bids | (`date`, `state`, `region`, `buyer_type`, `transport_mode`) | `date` → `calendar(date)` |
 | may_futures | `date` | `date` → `calendar(date)` |
 | tbill_decision | `decision_date` | `decision_date` → `calendar(date)` |
-| gold_yearly | (`decision_year`, `region`) | `oct_date`, `apr_date` → `calendar(date)` |
+| gold_yearly | (`decision_year`, `region_id`) | `oct_date`, `apr_date`, `oct_bid_date`, `apr_bid_date` → `calendar(date)` |
 
 ```
                      calendar (date)
@@ -177,9 +185,10 @@ you open a connection, or they are not enforced.
   buyer type and transport mode. Weekends and holidays have none.
 - **calendar → may_futures** (one-to-zero-or-one): only the 12 Oct/Apr hedge dates.
 - **calendar → tbill_decision** (one-to-zero-or-one): only the 6 Oct decision dates.
-- **calendar → gold_yearly** (via `oct_date` and `apr_date`): each gold row points to
-  one Oct and one Apr date.
+- **calendar → gold_yearly** (via `oct_date`, `apr_date`, `oct_bid_date`, `apr_bid_date`): each gold row points to
+  one Oct and one Apr futures date and the dates of the two cash bids used.
 - **Joining one decision year:** the Oct leg of `may_futures.date` = `tbill_decision.decision_date`
-  = `corn_bids.date` (with `state` = IL) gives the Oct cash price, futures and rate. The Apr leg joins
+  = `corn_bids.date` gives the Oct futures and rate; the cash price is the region's Country Elevators / Truck bid on
+  that date or the nearest earlier report within 7 days. The Apr leg joins
   `may_futures.date` to `corn_bids.date`. Both legs share `decision_year`. This is how
   `07_build_gold.py` builds `gold_yearly`.

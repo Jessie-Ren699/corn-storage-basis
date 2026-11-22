@@ -18,7 +18,7 @@ from the raw USDA pull to the walk-forward scoreboard, with a table or chart for
 | May futures | `04_clean_futures.py` | `data/raw/may_futures.csv` → `data/clean/may_futures.csv` ($/bu) |
 | T-bill | `05_tbill_rates.py` | `data/raw/fred_dtb6.csv` → `data/clean/tbill_decision.csv` |
 | Database | `06_build_db.py` | the 3 clean CSVs → `data/clean/corn.db` (keys checked) |
-| Gold | `07_build_gold.py` | `corn.db` + `data/raw/storage_costs.csv` → `data/gold/gold_yearly.csv` (Illinois North/South Central for now) |
+| Gold | `07_build_gold.py` | `corn.db` + `data/raw/storage_costs.csv` → `data/gold/gold_yearly.csv` (every Country Elevators / Truck region in the 6 states: 34 regions, 194 region-years) |
 | Charts | `08_charts.py` | gold → `outputs/scatter_gap.png`, `outputs/bars_by_year.png` |
 | Walk-forward | `09_walk_forward.py` | gold → `outputs/walk_forward_predictions.csv`, `outputs/scoreboard.csv` |
 
@@ -26,7 +26,8 @@ Run in order 03 → 09 from the project folder (`06` and `07` need `--overwrite`
 
 ## Plan
 
-- **Location:** one Central Illinois region (USDA report **3192**). See *To be determined*.
+- **Location:** the question is framed for one Central Illinois region (USDA report **3192**). Since 2026-11-21 the
+  analysis is run on every Country Elevators region in IL, IA, NE, SD, MN and IN (34 regions). See *To be determined*.
 - **Commodity:** corn
 - **Decision date:** Oct 15
 - **Exit date:** Apr 15
@@ -62,7 +63,7 @@ Store if        Target_hat > Hurdle
 
 | Data | Source | How collected | Used for |
 |---|---|---|---|
-| Cash bids | [USDA AMS MyMarketNews](https://mymarketnews.ams.usda.gov/) (MARS) API, state grain-bid reports: IL 3192 (Illinois Grain Bids), IA 2850, NE 3225, SD 3186, MN 3049, IN 3463; Oct/Apr, Oct 2020 to Apr 2026 (the API has no earlier data) | API, one month per request; files and checksums in `data/raw/usda_bids/manifest.csv` | Cash price on Oct 15 and Apr 15 (gold uses Illinois only for now) |
+| Cash bids | [USDA AMS MyMarketNews](https://mymarketnews.ams.usda.gov/) (MARS) API, state grain-bid reports: IL 3192 (Illinois Grain Bids), IA 2850, NE 3225, SD 3186, MN 3049, IN 3463; Oct/Apr, Oct 2020 to Apr 2026 (the API has no earlier data) | API, one month per request; files and checksums in `data/raw/usda_bids/manifest.csv` | Cash price on Oct 15 and Apr 15 (every Country Elevators / Truck region) |
 | May corn futures | CBOT settlements (ZCK21-ZCK26), read from [Barchart](https://www.barchart.com/futures/quotes/ZCK26/overview) | 12 settlements (Oct 15 and Apr 15, 6 contracts) typed by hand as raw quotes (e.g. `583-2`) | Basis on both dates; hedge result |
 | Interest rate | [FRED, series DTB6](https://fred.stlouisfed.org/series/DTB6) (6-month T-bill, secondary market, discount basis) | Download | InterestCost |
 | Storage costs | [farmdoc daily](https://farmdocdaily.illinois.edu/2025/10/annual-cost-of-storing-us-corn-and-soybeans-since-1973.html) (physical storage cost series); on-farm low case from Iowa Farm Bureau | Typed by hand into `data/raw/storage_costs.csv`, with source per row | StorageCost (low / mid / high cases) |
@@ -128,7 +129,8 @@ better decisions; only errors near the hurdle change the decision.
   cost, which would raise the hurdle.
 - **Ignored for now:** futures commissions, margin interest, grain shrink and
   quality risk.
-- One region only; results may not transfer to other locations.
+- Six states and 34 regions, but regions in the same year share the same futures, rate and weather year, so they are
+  not independent; results may not transfer to other states.
 - **Storage cost (commercial, high case) is halved from a 12-month figure.** Elevators often charge a flat
   fee and then a monthly rate, so a 6-month hold likely costs more than half (about 68% under 2014
   central-Illinois rates). The high case may understate commercial storage cost.

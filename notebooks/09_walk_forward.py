@@ -5,7 +5,8 @@ Output: outputs/walk_forward_predictions.csv  one row per test row (year x regio
         outputs/scoreboard.csv                one row per storage case x strategy
 
 Setup (user, 2026-11-13):
-- North Central + South Central pooled (2 rows per decision year).
+- All regions pooled (since 2026-11-21: every Country Elevators / Truck region in IL, IA, NE, SD,
+  MN, IN; one row per region_id per decision year; until then IL North + South Central only).
 - Test years 2023, 2024, 2025. Each round trains ONLY on decision years before the test year.
   No future data: a training year's gap_closed is known by Apr 15 of the next calendar year,
   before the test year's Oct 15. gap_oct, interest and storage are known on Oct 15.
@@ -31,10 +32,10 @@ CASES = ("low", "mid", "high")
 STRATEGIES = ("always sell", "always store", "past average", "regression")
 
 gold = pd.read_csv(GOLD)
-need = ["decision_year", "region", "gap_oct_cents", "gap_closed_cents", "interest_cents"] + \
+need = ["decision_year", "region_id", "gap_oct_cents", "gap_closed_cents", "interest_cents"] + \
        [f"storage_{c}_cents" for c in CASES] + [f"net_gain_{c}_cents" for c in CASES]
 assert gold[need].notna().all().all(), "missing values in gold"
-assert gold.groupby("decision_year").size().eq(2).all(), "expected 2 regions per year"
+assert not gold.duplicated(["decision_year", "region_id"]).any(), "duplicate (decision_year, region_id)"
 
 # 1. Walk-forward forecasts
 rows = []
@@ -49,7 +50,7 @@ for rnd, test_year in enumerate(TEST_YEARS, start=1):
           f"intercept = {intercept:.3f}, slope = {slope:.4f}; past average = {avg:.3f}")
     for _, r in test.iterrows():
         rows.append({
-            "round": rnd, "test_year": test_year, "region": r["region"],
+            "round": rnd, "test_year": test_year, "region_id": r["region_id"],
             "train_years": years, "n_train": len(train),
             "intercept": intercept, "slope": slope,
             "gap_oct_cents": r["gap_oct_cents"],
@@ -91,12 +92,11 @@ score = pd.DataFrame(score)
 
 # Print results
 pd.set_option("display.width", 200)
-show = pred[["test_year", "region", "gap_oct_cents", "actual_gap_closed_cents",
+show = pred[["test_year", "region_id", "gap_oct_cents", "actual_gap_closed_cents",
              "pred_regression_cents", "err_regression_cents",
              "pred_past_average_cents", "err_past_average_cents"]].copy()
-show["region"] = show["region"].str.replace(" Central", "")
 print("\nPart 1: predicted vs. actual gap_closed (cents/bu); error = predicted - actual")
-print(show.round(2).to_string(index=False))
+print(show.round(2).to_string(index=False, max_rows=12))
 mae = {"regression": pred["err_regression_cents"].abs().mean(),
        "past average": pred["err_past_average_cents"].abs().mean()}
 print(f"MAE over {len(pred)} test rows: regression {mae['regression']:.2f}, "
@@ -104,15 +104,15 @@ print(f"MAE over {len(pred)} test rows: regression {mae['regression']:.2f}, "
 
 print("\nPart 2: calls per test row (S = store, - = sell; best = hindsight)")
 for c in CASES:
-    t = pred[["test_year", "region"]].copy()
-    t["region"] = t["region"].str.replace(" Central", "")
+    t = pred[["test_year", "region_id"]].copy()
     t["actual_net"] = pred[f"net_gain_{c}_cents"].round(1)
     for col, name in [(f"best_store_{c}", "best"), (f"store_past_average_{c}", "past_avg"),
                       (f"store_regression_{c}", "regression")]:
         t[name] = pred[col].map({True: "S", False: "-"})
-    print(f"\n[{c}]"); print(t.to_string(index=False))
+    print(f"\n[{c}] calls per test year (S = store, n = {len(t)} test rows):")
+    print(t.groupby("test_year")[["best", "past_avg", "regression"]].agg(lambda s: f"{(s == 'S').sum()}/{len(s)} store").to_string())
 
-print("\nScoreboard (cents/bu, 6 test rows):")
+print(f"\nScoreboard (cents/bu, {len(pred)} test rows):")
 print(score.round(2).to_string(index=False))
 
 # Save (outputs only; no data files are touched)

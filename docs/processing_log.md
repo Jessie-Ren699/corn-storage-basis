@@ -12,9 +12,9 @@ the user-approved hand entry of the futures prices (see Change entries, 2026-11-
 | 04 clean_futures | `raw/may_futures.csv` → `clean/may_futures.csv` | ✅ 2026-11-08: 12 rows, 0 MISSING prices |
 | 05 tbill_rates | `raw/fred_dtb6.csv` → `clean/tbill_decision.csv` | ✅ 2026-11-08: 6 rows (unchanged) |
 | 06 build_db | 3 clean CSVs → `clean/corn.db` | ✅ 2026-11-21: 4 tables, checks passed; `corn_bids` 9,935 rows, PK with `state` and `transport_mode` |
-| 07 build_gold | `corn.db` + `raw/storage_costs.csv` → `gold_yearly` table + `gold/gold_yearly.csv` | ✅ 2026-11-21: 12 rows × 27 cols, 0 missing; Illinois only; byte-identical to 2026-11-13 |
-| 08 charts | `gold/gold_yearly.csv` + `raw/storage_costs.csv` → `outputs/*.png` | ✅ 2026-11-21: decision chart (`scatter_gap.png`) replaces the old scatter; bar chart unchanged |
-| 09 walk_forward | `gold/gold_yearly.csv` → `outputs/walk_forward_predictions.csv`, `outputs/scoreboard.csv` | ✅ 2026-11-21: 6 test rows, 12 scoreboard rows; byte-identical to 2026-11-13 |
+| 07 build_gold | `corn.db` + `raw/storage_costs.csv` → `gold_yearly` table + `gold/gold_yearly.csv` | ✅ 2026-11-21: 194 rows × 34 cols, every Country Elevators / Truck region in 6 states; 10 region-years dropped (listed) |
+| 08 charts | `gold/gold_yearly.csv` + `raw/storage_costs.csv` → `outputs/*.png` | ✅ 2026-11-21: decision scatter (all states, color + shape) and one-panel bar chart (median, 10th-90th percentile) |
+| 09 walk_forward | `gold/gold_yearly.csv` → `outputs/walk_forward_predictions.csv`, `outputs/scoreboard.csv` | ✅ 2026-11-21: 101 test rows (all regions pooled), 12 scoreboard rows |
 
 ## Raw vs Clean
 
@@ -26,7 +26,7 @@ Counted from the actual files on 2026-11-08; Storage costs and Gold rows updated
 | May futures | `raw/may_futures.csv` | 12 | 5 | `clean/may_futures.csv` | 12 | 8 | 0. Added `contract_name`, `leg` and `may_futures_price` ($/bu) |
 | T-bill | `raw/fred_dtb6.csv` | 17,707 | 2 | `clean/tbill_decision.csv` | 6 | 7 | Summarized, not dropped: 755 blank holiday rows skipped; 41 daily values in the six 10-day windows averaged into 6 rows (1 per decision date) |
 | Storage costs | `raw/storage_costs.csv` (typed from articles) | 6 | 7 | (read directly by `07`; no clean copy) | n/a | n/a | 0. One row per decision year; low/mid/high cents for a 6-month hold |
-| Gold | (built from `clean/corn.db` + `raw/storage_costs.csv`) | n/a | n/a | `gold/gold_yearly.csv` | 12 | 27 | Selection, not dropped: 2 regions × Country Elevators × 6 years, Oct and Apr dates only |
+| Gold (updated 2026-11-21) | (built from `clean/corn.db` + `raw/storage_costs.csv`) | n/a | n/a | `gold/gold_yearly.csv` | 194 | 34 | 34 regions × 6 years = 204; 10 dropped (no bid within 7 days, all Indiana). Country Elevators / Truck, Oct and Apr hedge dates only |
 
 **Run order:** `03` → `04` → `05` → `06 --overwrite` → `07` → `08` → `09`.
 `06` rebuilds `corn.db` from scratch, which removes `gold_yearly`, so `07` must always
@@ -131,6 +131,8 @@ run after it.
 
 ## 07_build_gold.py: gold table
 
+- **Since 2026-11-21:** every Country Elevators / Truck region in 6 states, `region_id` key, bid-date lag up to 7 days;
+  see the 2026-11-21 "all regions" entry. The notes below describe the earlier Illinois-only version.
 - **Input:** `data/clean/corn.db`. Regions North Central and South Central, Country
   Elevators, decision years 2020-2025.
 - **What it does:**
@@ -466,3 +468,51 @@ the FGP parts are now in `fgp_river_basis/processing_log.md`.)*
   are the second cue.
 - **Files written:** `outputs/scatter_gap.png` (new) and `outputs/bars_by_year.png` (byte-identical to before).
   No data files changed.
+
+### 2026-11-21: all regions in 6 states (07, 08, 09 changed; rerun 03 → 09)
+
+- **Why (user):** expand the analysis from IL North + South Central to every region of IL, IA, NE, SD, MN, IN, Oct 2020 → Apr 2026.
+  Steps 1-2 of the request (6-state `03`, new `corn_bids` key in `06`) were already done in the entry
+  "cash bids for 6 states in the pipeline"; `03` and `06` were rerun and their outputs are unchanged.
+- **Backup:** all previous clean/gold/output files and scripts 06-09 in the session scratch folder before rerunning.
+- **`07_build_gold.py`:**
+  - All regions, Country Elevators, Truck only: 34 regions (IL 7, IA 6, NE 7, SD 5, MN 1, IN 8).
+  - New key `region_id` = state + " " + region; PK (`decision_year`, `region_id`). New columns `state`, `region_id`,
+    `transport_mode`, `oct_bid_date`, `oct_bid_date_lag_days`, `apr_bid_date`, `apr_bid_date_lag_days` (34 columns).
+  - Bid date = futures date; if none, the nearest **prior** report within 7 days (`pd.merge_asof`, backward). Lags:
+    0 days 371 legs, 1 day 8, 3 days 7, 5 days 2 (Indiana weekly months; SD Central and North Central Oct 2025).
+  - **Dropped (no bid within 7 days), 10 region-years:** IN 2020 (all 8 regions, no Oct 2020 data; IN South also has no
+    Apr 2021 bid); IN South 2021 and 2025 (no Oct or Apr bid). 204 → **194 rows**: IL 42, IA 36, NE 42, SD 30, MN 6, IN 38.
+  - Futures, T-bill rate and storage costs are the same for every region.
+  - **Check:** the 12 IL North/South Central rows equal the previous gold table exactly in all 27 earlier columns; their
+    bid-date lags are 0.
+  - **Flag:** Nebraska 2022 cash bids were above May futures (Oct gap down to −90¢, NE Southwest). USDA's own raw basis is
+    +90 to +100¢ over December futures that day, so this is real data and the rows are kept.
+- **`08_charts.py`:**
+  - Scatter: dots colored **and shaped** by state (user decision: no 6-color set passes the all-pairs colorblind check; best
+    set blue/aqua/yellow/magenta/green/red has CVD ΔE 6.1 and normal 13.2, so shape is the second cue). Storage cases in gray.
+    One pooled line. The X marker is drawn only if X is inside the observed Oct gaps; mid and high bands overlap at 35.5-37¢ (noted).
+  - **Pooled OLS:** breakeven = −3.1849 + 0.5402 × gap_oct, R² = 0.4640, n = 194.
+  - **With state fixed effects:** slope 0.4943, R² 0.5573; intercept IL 4.05; vs IL: IA −2.41, NE −14.41, SD −9.62, MN −8.25, IN +1.28.
+  - **X = 22.6¢**, inside the observed −90.0 to 101.3¢, so the marker is drawn ("on average").
+  - Dots above each case = gold wins: **low 161/194, mid 50/194, high 17/194**.
+  - `bars_by_year.png` redrawn as one panel: bar = median "left for storage" across regions per year, whisker = 10th-90th
+    percentile, storage costs as step lines (orange ramp, as before), under each year the % of regions where storing won
+    (low / mid / high) and n. Bars are blue (green vs the dark-orange line failed the colorblind check).
+- **`09_walk_forward.py`:** pooled over all regions (`region_id`), same 3 rounds, train only on earlier years.
+  - Rounds: train n = 93 / 127 / 161 → test 34 / 34 / 33 rows (101). Slopes 0.687 / 0.668 / 0.671; past averages 21.38 / 26.38 / 29.07.
+  - **MAE:** regression **13.19**, past average **16.24** cents/bu.
+  - **Scoreboard (total net gain over 101 test rows, cents/bu; correct calls of 101):**
+
+    | case | always sell | always store | past average | regression |
+    |---|---|---|---|---|
+    | low | 0 (7) | +1,917.8 (94) | +1,744.5 (83) | +1,896.5 (92) |
+    | mid | 0 (79) | −910.2 (22) | 0 (79) | −102.3 (66) |
+    | high | 0 (97) | −3,738.2 (4) | 0 (97) | 0 (97) |
+
+  - In 2023 the past average (21.38¢) was just below the low hurdle (20.2-22.0¢) and said sell in 11 regions that all gained
+    (173.3¢ missed). In the mid case the regression stored 35 times and won 11.
+- **Files written:** `data/clean/corn_bids_current.csv`, `may_futures.csv`, `tbill_decision.csv` (byte-identical),
+  `data/clean/corn.db`, `data/gold/gold_yearly.csv`, `outputs/scatter_gap.png`, `outputs/bars_by_year.png`,
+  `outputs/walk_forward_predictions.csv` (101 rows), `outputs/scoreboard.csv`. `data/raw/` not touched.
+- **Docs:** `data_dictionary.md` (gold_yearly), README (pipeline, plan, limitations), walkthrough (Parts 0-6).
