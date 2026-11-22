@@ -1,8 +1,12 @@
 """Step 08: charts from data/gold/gold_yearly.csv.
 
-1. outputs/scatter_gap.png   x = gap_oct (X), y = gap_closed (Y), one color per region,
-                             year labels, best-fit line per region and pooled (slope and
-                             R² in the legend), orange dash at each year's interest hurdle.
+1. outputs/scatter_gap.png   "decision" chart: x = gap_oct_cents (known on Oct 15),
+                             y = breakeven_storage_cents (gap closed - interest = what was left
+                             to pay for storage). One dot per region-year, colored by state;
+                             one pooled OLS line (slope, intercept, R², n in the legend);
+                             storage cost cases from data/raw/storage_costs.csv: low = dotted
+                             line, mid and high = shaded min-max bands. A dot above a case
+                             means storing beat selling at that storage cost.
 2. outputs/bars_by_year.png  gap_closed (green bar) vs. the three hurdles (storage + interest)
                              for the low / mid / high storage cases, by decision year,
                              one panel per region. Storing wins where the bar is above a line.
@@ -24,6 +28,7 @@ import pandas as pd
 TEST = "--test" in sys.argv
 args = [a for a in sys.argv[1:] if a != "--test"]
 CSV = args[0] if args else "data/gold/gold_yearly.csv"
+STORAGE_CSV = "data/raw/storage_costs.csv"  # read only, never changed
 OUT = args[1] if len(args) > 1 else "outputs"
 
 if not os.path.exists(CSV):
@@ -32,8 +37,9 @@ if not os.path.exists(CSV):
 
 df = pd.read_csv(CSV, na_values="MISSING")
 CASES = ("low", "mid", "high")
-need = ["decision_year", "region", "gap_oct_cents", "gap_closed_cents", "interest_cents"] + \
-       [f"hurdle_{c}_cents" for c in CASES]
+need = ["decision_year", "region", "gap_oct_cents", "gap_closed_cents", "interest_cents",
+        "breakeven_storage_cents"] + [f"hurdle_{c}_cents" for c in CASES] + \
+       [f"storage_{c}_cents" for c in CASES] + [f"store_wins_{c}" for c in CASES]
 if df[need].isna().any().any():
     print("STOPPED: missing values in", df[need].columns[df[need].isna().any()].tolist())
     sys.exit(1)
@@ -50,6 +56,10 @@ HURDLE_STYLE = {"low": ("#f29a70", (0, (1, 1.5)), "low: on-farm"),
                 "mid": ("#eb6834", (0, (4, 2)), "mid"),
                 "high": ("#a8400f", "-", "high: commercial")}
 REGIONS = [r for r in REGION_COLOR if r in set(df["region"])]
+# Scatter dots are colored by state. The gold table is Illinois only for now (07 filters
+# state = IL) and has no state column, so every dot is IL until other states are added.
+STATE_COLOR = {"IL": "#2a78d6"}                                          # blue
+LINE_COLOR = INK_2                                                       # pooled line: neutral ink
 
 plt.rcParams.update({
     "figure.facecolor": SURFACE, "axes.facecolor": SURFACE, "savefig.facecolor": SURFACE,
@@ -70,46 +80,79 @@ def fit(x, y):
     return slope, intercept, np.corrcoef(x, y)[0, 1] ** 2
 
 
-# 1. Scatter: gap_oct vs gap_closed, with each year's interest hurdle
-fig, ax = plt.subplots(figsize=(9, 6.5))
-ax.axhline(0, color=GRID, lw=1, zorder=0)
+# 1. Decision chart: Oct gap (known on Oct 15) vs. what was left to pay for storage
+x_col, y_col = "gap_oct_cents", "breakeven_storage_cents"
+state = df["state"] if "state" in df.columns else pd.Series("IL", index=df.index)
+if not set(state) <= set(STATE_COLOR):
+    print("STOPPED: no color for states", sorted(set(state) - set(STATE_COLOR)))
+    sys.exit(1)
+storage = pd.read_csv(STORAGE_CSV)
+
+# Pooled OLS of y on x, both regions, all years
+slope, intercept, r2 = fit(df[x_col], df[y_col])
+n = len(df)
+low_cost = storage["storage_low_cents"].iloc[0]
+assert storage["storage_low_cents"].nunique() == 1, "low case is expected to be one value for all years"
+x_at_low = (low_cost - intercept) / slope     # Oct gap where the pooled line reaches the low cost
+x_min, x_max = df[x_col].min(), df[x_col].max()
+print(f"Pooled OLS {y_col} ~ {x_col}: slope = {slope:.4f}, intercept = {intercept:.4f}, "
+      f"R² = {r2:.4f}, n = {n}")
+in_range = x_min <= x_at_low <= x_max
+print(f"X (Oct gap where the line reaches {low_cost:g}¢) = {x_at_low:.1f}¢ "
+      f"({'inside' if in_range else 'OUTSIDE'} the observed range {x_min:.1f} to {x_max:.1f}¢)")
+
+# Dots above each case: low = the fixed 9¢; mid and high = each year's own cost.
+# Must equal store_wins_c in gold (net gain > 0 is the same as breakeven > storage).
+for c in CASES:
+    above = int((df[y_col] > df[f"storage_{c}_cents"]).sum())
+    wins = int(df[f"store_wins_{c}"].astype(str).isin(["True", "1"]).sum())
+    print(f"dots above {c}: {above} of {n} (gold store_wins_{c}: {wins})")
+    if above != wins:
+        print("STOPPED: dot count does not match gold")
+        sys.exit(1)
+
+fig, ax = plt.subplots(figsize=(9, 6.2))
 ax.grid(color=GRID, lw=0.6, zorder=0)
-for region in REGIONS:
-    d = df[df["region"] == region]
-    c = REGION_COLOR[region]
-    slope, intercept, r2 = fit(d["gap_oct_cents"], d["gap_closed_cents"])
-    print(f"{region}: slope = {slope:.4f}, intercept = {intercept:.4f}, R² = {r2:.4f}, n = {len(d)}")
-    # Thin line from each year's hurdle dash up (or down) to its dot
-    ax.vlines(d["gap_oct_cents"], d["interest_cents"], d["gap_closed_cents"],
-              color=c, lw=0.8, alpha=0.6, zorder=1)
-    ax.scatter(d["gap_oct_cents"], d["gap_closed_cents"], s=60, color=c, edgecolor=SURFACE,
-               linewidth=2, zorder=3,
-               label=f"{region} (n = {len(d)}): slope {slope:.2f}, R² = {r2:.2f}")
-    for _, r in d.iterrows():
-        ax.annotate(str(int(r["decision_year"])), (r["gap_oct_cents"], r["gap_closed_cents"]),
-                    xytext=(6, 4), textcoords="offset points", fontsize=8, color=INK_2)
-    xs = np.linspace(d["gap_oct_cents"].min(), d["gap_oct_cents"].max(), 50)
-    ax.plot(xs, slope * xs + intercept, color=c, lw=2, zorder=2)
+XL, YL = (20, 80), (0, 70)
+# Storage cost cases: mid and high as shaded min-max bands, low as a dotted line
+high_lo = storage["storage_high_cents"].min()   # mid label sits below the high band
+for c, alpha in (("mid", 0.16), ("high", 0.22)):
+    color, _, label = HURDLE_STYLE[c]
+    lo, hi = storage[f"storage_{c}_cents"].min(), storage[f"storage_{c}_cents"].max()
+    ax.axhspan(lo, hi, color=color, alpha=alpha, lw=0, zorder=1)
+    ax.text(XL[1] - 0.5, (lo + hi) / 2 if c == "high" else (lo + min(hi, high_lo)) / 2,
+            f"{label}\n{lo:g}-{hi:g}¢", ha="right", va="center", fontsize=8.5, color=INK_2, zorder=4)
+color, ls, label = HURDLE_STYLE["low"]
+ax.axhline(low_cost, color=color, ls=ls, lw=2.2, zorder=2)
+ax.text(XL[1] - 0.5, low_cost + 1.2, f"{label} {low_cost:g}¢", ha="right", va="bottom",
+        fontsize=8.5, color=INK_2, zorder=4)
 
-# Interest hurdle: one short orange dash per dot, at that year's interest cost
-ax.plot(df["gap_oct_cents"], df["interest_cents"], linestyle="none", marker="_",
-        markersize=14, markeredgewidth=2.5, color=INTEREST_COLOR, zorder=2,
-        label="interest hurdle (varies by year)")
+# Dots: one per region-year, colored by state, small and slightly transparent
+for st in sorted(set(state)):
+    d = df[state == st]
+    ax.scatter(d[x_col], d[y_col], s=38, color=STATE_COLOR[st], alpha=0.8, edgecolor=SURFACE,
+               linewidth=1, zorder=5, label=f"{st} (n = {len(d)} region-years)")
 
-# Pooled best fit: both regions, all points
-slope, intercept, r2 = fit(df["gap_oct_cents"], df["gap_closed_cents"])
-print(f"Pooled: slope = {slope:.4f}, intercept = {intercept:.4f}, R² = {r2:.4f}, n = {len(df)}")
-xs = np.linspace(df["gap_oct_cents"].min(), df["gap_oct_cents"].max(), 50)
-ax.plot(xs, slope * xs + intercept, color=POOLED_COLOR, lw=2, linestyle="--", zorder=2,
-        label=f"Pooled (n = {len(df)}): slope {slope:.2f}, R² = {r2:.2f}")
+# One pooled line, drawn only over the observed Oct gaps (no extrapolation)
+xs = np.linspace(x_min, x_max, 50)
+ax.plot(xs, intercept + slope * xs, color=LINE_COLOR, lw=2, zorder=6,
+        label=f"Pooled OLS: y = {intercept:.2f} + {slope:.3f}x, R² = {r2:.2f}, n = {n}")
+if not in_range:
+    ax.text(x_min, 3, f"Pooled line stays above {low_cost:g}¢ at every observed Oct gap "
+            f"({x_min:.0f}-{x_max:.0f}¢): on-farm storage paid throughout.",
+            fontsize=8.5, color=INK_2, ha="left", va="bottom", zorder=4)
 
-ax.set_xlabel("Oct gap: May futures minus cash (cents/bu)   [X]")
-ax.set_ylabel("Gap closed, Oct to Apr (cents/bu)   [Y]")
-ax.set_title("A wider October gap vs. how much of it closed by April\n"
-             "Country Elevators, decision years 2020-2025.\n"
-             "Orange dashes show the interest cost only; storage cases are in bars_by_year.png.",
-             loc="left", fontsize=11)
-ax.legend(frameon=False, loc="lower right", fontsize=9)
+ax.set_xlim(*XL)
+ax.set_ylim(*YL)
+ax.set_xlabel("October gap: May futures − cash (cents/bu), known on Oct 15")
+ax.set_ylabel("Gap closed − interest (cents/bu)\n= what was left to pay for storage")
+fig.suptitle("Does a wider October gap leave more to pay for storage?", x=0.01, ha="left",
+             fontsize=12)
+ax.set_title("Dots above a band: storing beat selling at that storage cost "
+             "(a band spans the years' costs; inside it, it depends on that year).\n"
+             "Illinois Country Elevators, North + South Central, decision years 2020-2025.",
+             loc="left", fontsize=9, color=INK_2)
+ax.legend(frameon=False, loc="upper left", fontsize=9)
 watermark(fig)
 fig.tight_layout()
 fig.savefig(os.path.join(OUT, "scatter_gap.png"), dpi=150)

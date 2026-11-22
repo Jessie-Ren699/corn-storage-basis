@@ -13,7 +13,7 @@ the user-approved hand entry of the futures prices (see Change entries, 2026-11-
 | 05 tbill_rates | `raw/fred_dtb6.csv` → `clean/tbill_decision.csv` | ✅ 2026-11-08: 6 rows (unchanged) |
 | 06 build_db | 3 clean CSVs → `clean/corn.db` | ✅ 2026-11-21: 4 tables, checks passed; `corn_bids` 9,935 rows, PK with `state` and `transport_mode` |
 | 07 build_gold | `corn.db` + `raw/storage_costs.csv` → `gold_yearly` table + `gold/gold_yearly.csv` | ✅ 2026-11-21: 12 rows × 27 cols, 0 missing; Illinois only; byte-identical to 2026-11-13 |
-| 08 charts | `gold/gold_yearly.csv` → `outputs/*.png` | ✅ 2026-11-13: 2 charts saved; bar chart shows gap closed vs. low/mid/high hurdles |
+| 08 charts | `gold/gold_yearly.csv` + `raw/storage_costs.csv` → `outputs/*.png` | ✅ 2026-11-21: decision chart (`scatter_gap.png`) replaces the old scatter; bar chart unchanged |
 | 09 walk_forward | `gold/gold_yearly.csv` → `outputs/walk_forward_predictions.csv`, `outputs/scoreboard.csv` | ✅ 2026-11-21: 6 test rows, 12 scoreboard rows; byte-identical to 2026-11-13 |
 
 ## Raw vs Clean
@@ -154,13 +154,14 @@ run after it.
 
 ## 08_charts.py: charts
 
-- **Input:** `data/gold/gold_yearly.csv`.
-- **What it does:**
-  - `outputs/scatter_gap.png`: gap_oct vs gap_closed, one color per region, year
-    labels, best-fit line per region plus a pooled gray dashed line (slope and R² in the
-    legend). An orange dash marks each year's interest hurdle, with a thin line to its dot.
-  - `outputs/bars_by_year.png`: gap_closed vs interest by year, one panel per region,
-    with the note "Hurdle shows interest only; storage not added yet."
+- **Input:** `data/gold/gold_yearly.csv`; `data/raw/storage_costs.csv` (read only, for the storage bands).
+- **What it does (since 2026-11-21):**
+  - `outputs/scatter_gap.png`, the decision chart: x = `gap_oct_cents`, y = `breakeven_storage_cents`
+    (gap closed − interest), one dot per region-year colored by state, one pooled OLS line, storage cases
+    as a dotted line (low) and min-max bands (mid, high). It prints the regression and checks that the dots
+    above each case match `store_wins_c` in gold (stops if not).
+  - `outputs/bars_by_year.png`: gap_closed (bar) vs. the low/mid/high hurdles by year, one panel per region.
+  - The "last run" notes below describe the older scatter (gap_closed per region); see the 2026-11-21 entry.
 - **Output:** the two PNGs in `outputs/`.
 - **Checks:** stops if the input file is missing or any plotted value is missing.
 - **Last run:** 2026-11-08 (rerun after the color and hurdle changes). Saved `outputs/scatter_gap.png` and
@@ -440,3 +441,28 @@ the FGP parts are now in `fgp_river_basis/processing_log.md`.)*
   - 06: no duplicate PKs, every FK date in `calendar`, `foreign_key_check` empty; `corn_bids` 9,935 rows.
 - **Changed files:** `data/clean/corn_bids_current.csv`, `data/clean/corn.db`. `data/raw/` not touched.
 - **Docs:** `data_dictionary.md` (`state` column, new key, 6 states), README (pipeline map, cash-bid source).
+
+### 2026-11-21: 08 scatter replaced by a "decision" chart (08 rerun only)
+
+- **Why (user):** a clearer chart for the store/sell decision. Same file name, `outputs/scatter_gap.png`.
+- **New chart:**
+  - x = `gap_oct_cents` (known on Oct 15); y = `breakeven_storage_cents` = gap closed − interest, i.e. what was
+    left to pay for storage.
+  - One dot per region-year, colored by state. Gold is Illinois only, so all 12 dots are IL (blue `#2a78d6`).
+  - One pooled OLS line, drawn only over the observed Oct gaps; no per-region lines.
+  - Storage cases read from `data/raw/storage_costs.csv`: low = dotted line at 9¢; mid = light band 22.25-37¢;
+    high = darker band 35.5-65¢ (min-max across years). Same light → dark orange ramp as the bar chart.
+  - The orange interest dashes are gone (interest is inside y). Title: "Does a wider October gap leave more to pay for
+    storage?"; subtitle explains that a dot inside a band depends on that year's cost.
+- **Regression (pooled, n = 12):** breakeven = 12.0949 + 0.2517 × gap_oct, R² = 0.2950. (The old chart's pooled
+  fit of gap_closed on gap_oct had slope 0.4126, R² 0.6739; subtracting interest, which jumped from 2022, weakens the fit.)
+- **X (Oct gap where the line reaches the 9¢ low cost) = −12.3¢**, far outside the observed 29.4-66.6¢. The
+  vertical marker was dropped (user decision); the chart instead notes that the line stays above 9¢ at every
+  observed Oct gap. The line reaches the lowest mid cost (22.25¢) at an Oct gap of about 40.3¢.
+- **Check:** dots above each case = gold `store_wins`: low 12/12, mid 1/12 (each year's own mid cost), high 0/12.
+  08 now stops if these ever differ.
+- **Colors (validator):** storage ramp `#f29a70`/`#eb6834`/`#a8400f` passes the ordinal check; blue dots vs the
+  oranges pass the categorical check (all pairs). Low and mid are close in color, so line vs band and text labels
+  are the second cue.
+- **Files written:** `outputs/scatter_gap.png` (new) and `outputs/bars_by_year.png` (byte-identical to before).
+  No data files changed.
