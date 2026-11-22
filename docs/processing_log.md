@@ -8,13 +8,13 @@ the user-approved hand entry of the futures prices (see Change entries, 2026-11-
 
 | Step | Input → Output | Status (last run) |
 |---|---|---|
-| 03 build_silver | 12 Oct/Apr `raw/3192_*.csv` files, listed by name → `clean/corn_bids_current.csv` | ✅ 2026-11-11: 3,024 rows (byte-identical to the 2026-11-05 output) |
+| 03 build_silver | 71 raw grain-bid files for 6 states, listed in `raw/usda_bids/manifest.csv` → `clean/corn_bids_current.csv` | ✅ 2026-11-21: 9,935 rows, 6 states (IL rows byte-identical to the previous output) |
 | 04 clean_futures | `raw/may_futures.csv` → `clean/may_futures.csv` | ✅ 2026-11-08: 12 rows, 0 MISSING prices |
 | 05 tbill_rates | `raw/fred_dtb6.csv` → `clean/tbill_decision.csv` | ✅ 2026-11-08: 6 rows (unchanged) |
-| 06 build_db | 3 clean CSVs → `clean/corn.db` | ✅ 2026-11-13: 4 tables, checks passed (source tables unchanged) |
-| 07 build_gold | `corn.db` + `raw/storage_costs.csv` → `gold_yearly` table + `gold/gold_yearly.csv` | ✅ 2026-11-13: 12 rows × 27 cols, 0 missing (storage cases + breakeven_storage_cents) |
+| 06 build_db | 3 clean CSVs → `clean/corn.db` | ✅ 2026-11-21: 4 tables, checks passed; `corn_bids` 9,935 rows, PK with `state` and `transport_mode` |
+| 07 build_gold | `corn.db` + `raw/storage_costs.csv` → `gold_yearly` table + `gold/gold_yearly.csv` | ✅ 2026-11-21: 12 rows × 27 cols, 0 missing; Illinois only; byte-identical to 2026-11-13 |
 | 08 charts | `gold/gold_yearly.csv` → `outputs/*.png` | ✅ 2026-11-13: 2 charts saved; bar chart shows gap closed vs. low/mid/high hurdles |
-| 09 walk_forward | `gold/gold_yearly.csv` → `outputs/walk_forward_predictions.csv`, `outputs/scoreboard.csv` | ✅ 2026-11-13: 6 test rows, 12 scoreboard rows; no data files changed |
+| 09 walk_forward | `gold/gold_yearly.csv` → `outputs/walk_forward_predictions.csv`, `outputs/scoreboard.csv` | ✅ 2026-11-21: 6 test rows, 12 scoreboard rows; byte-identical to 2026-11-13 |
 
 ## Raw vs Clean
 
@@ -22,13 +22,13 @@ Counted from the actual files on 2026-11-08; Storage costs and Gold rows updated
 
 | Dataset | Raw file | Raw rows | Raw cols | Clean file | Clean rows | Clean cols | Rows dropped and why |
 |---|---|---|---|---|---|---|---|
-| Cash bids | `raw/3192_*.csv` (12 files) | 12,486 | 55 | `clean/corn_bids_current.csv` | 3,024 | 13 | 9,462: 6,700 not corn (soybeans 5,615, wheat 1,085); 2,754 corn but not current delivery; 8 empty `¢/Bu` rows that duplicated a real row's key |
+| Cash bids (6 states, updated 2026-11-21) | 71 files listed in `raw/usda_bids/manifest.csv` | 39,958 | 55 (+`state`) | `clean/corn_bids_current.csv` | 9,935 | 14 | 30,023: 24,354 not corn; 5,514 corn but not current delivery; 147 White corn (Indiana); 8 empty `¢/Bu` rows (Illinois) that duplicated a real row's key. Illinois alone: 12,486 → 3,024, as before |
 | May futures | `raw/may_futures.csv` | 12 | 5 | `clean/may_futures.csv` | 12 | 8 | 0. Added `contract_name`, `leg` and `may_futures_price` ($/bu) |
 | T-bill | `raw/fred_dtb6.csv` | 17,707 | 2 | `clean/tbill_decision.csv` | 6 | 7 | Summarized, not dropped: 755 blank holiday rows skipped; 41 daily values in the six 10-day windows averaged into 6 rows (1 per decision date) |
 | Storage costs | `raw/storage_costs.csv` (typed from articles) | 6 | 7 | (read directly by `07`; no clean copy) | n/a | n/a | 0. One row per decision year; low/mid/high cents for a 6-month hold |
 | Gold | (built from `clean/corn.db` + `raw/storage_costs.csv`) | n/a | n/a | `gold/gold_yearly.csv` | 12 | 27 | Selection, not dropped: 2 regions × Country Elevators × 6 years, Oct and Apr dates only |
 
-**Run order:** `03` → `04` → `05` → `06 --overwrite` → `07` → `08`.
+**Run order:** `03` → `04` → `05` → `06 --overwrite` → `07` → `08` → `09`.
 `06` rebuilds `corn.db` from scratch, which removes `gold_yearly`, so `07` must always
 run after it.
 
@@ -36,7 +36,12 @@ run after it.
 
 ## 03_build_silver.py: cash bids (silver table)
 
-- **Input:** `data/raw/3192_YYYY-MM.csv`, the 12 monthly USDA MyMarketNews pulls of report
+- **Input (since 2026-11-21):** every file listed in `data/raw/usda_bids/manifest.csv`: the 12 Illinois
+  pulls `data/raw/3192_YYYY-MM.csv` plus 59 files for IA, NE, SD, MN, IN in `data/raw/usda_bids/<STATE>/`.
+  Each file's SHA-256 must match the manifest. A `state` column is added; the new filter keeps Yellow corn
+  only, and the primary key is (`date`, `state`, `region`, `buyer_type`, `transport_mode`). See the
+  2026-11-21 change entry. The steps below describe the earlier Illinois-only version.
+- **Input (until 2026-11-21):** `data/raw/3192_YYYY-MM.csv`, the 12 monthly USDA MyMarketNews pulls of report
   3192 (Oct and Apr, 2020-10 to 2026-04). `test_3192_2024-10.csv` is skipped.
 - **What it did:**
   1. Stacked the 12 files and kept 13 columns.
@@ -408,3 +413,30 @@ the FGP parts are now in `fgp_river_basis/processing_log.md`.)*
   - MN from 2025-04 also reports forward bids (`current = No`), so its rows double; spot bids stay ~21-23 per month.
   - MN has one region (South); IN adds Barge Loading and Terminal elevators; NE and SD are Country Elevators only.
 - **Checks:** existing `data/raw/*.csv` checksums unchanged; no file overwritten; API key read from `.env`, not printed.
+
+### 2026-11-21: cash bids for 6 states in the pipeline (03, 06, 07 changed; rerun 03 → 09)
+
+- **Why (user):** make the new state data part of the normal pipeline. The decision question stays Central Illinois.
+- **`03_build_silver.py`:**
+  - Reads every file listed in `data/raw/usda_bids/manifest.csv` (12 IL + 59 IA/NE/SD/MN/IN; IN 2020-10 has no file)
+    and stops if any file's SHA-256 differs from the manifest. Adds a `state` column.
+  - Filters, with rows after each: raw 39,958 → corn 15,604 → deliver now 10,090 → **Yellow corn 9,943** →
+    drop 8 empty `¢/Bu` rows 9,935.
+  - **New filter (user decision): Yellow corn only.** Indiana also reports White corn (147 rows, Ohio River barge
+    elevators), a different product; futures are for Yellow #2. Illinois is all Yellow.
+  - **New primary key:** (`date`, `state`, `region`, `buyer_type`, `transport_mode`). With (`date`, `state`, `region`,
+    `buyer_type`), 469 Indiana rows repeated a key: Ohio River barge elevators post a Truck and a Truck/Rail bid on
+    the same day (user chose to widen the key). 0 duplicates on the new key.
+  - Output 9,935 rows × 14 cols: IL 3,024, IA 1,771, NE 1,750, SD 1,256, MN 255, IN 1,879. 0 MISSING prices.
+- **`06_build_db.py`:** `corn_bids` gets `state` (NOT NULL) and the new 5-column PK; `transport_mode` is NOT NULL.
+- **`07_build_gold.py`:** the cash-bid join also requires `state = 'IL'` (Iowa and South Dakota also have regions
+  named North Central / South Central).
+- **Rerun:** `03 --overwrite` → `04` → `05` → `06 --overwrite` → `07 --overwrite` → `08` → `09`. Previous outputs backed up in
+  the session scratch folder.
+- **Checks:**
+  - The IL rows of the new `corn_bids_current.csv`, with `state` dropped, are **byte-identical** to the previous file (3,024 rows).
+  - **Byte-identical to before:** `gold/gold_yearly.csv`, `outputs/scoreboard.csv`, `outputs/walk_forward_predictions.csv`,
+    both charts, `clean/may_futures.csv`, `clean/tbill_decision.csv`.
+  - 06: no duplicate PKs, every FK date in `calendar`, `foreign_key_check` empty; `corn_bids` 9,935 rows.
+- **Changed files:** `data/clean/corn_bids_current.csv`, `data/clean/corn.db`. `data/raw/` not touched.
+- **Docs:** `data_dictionary.md` (`state` column, new key, 6 states), README (pipeline map, cash-bid source).

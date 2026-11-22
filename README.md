@@ -10,6 +10,20 @@ compared with the cost of storage plus the opportunity cost of capital.
 **Walkthrough:** [notebooks/00_walkthrough.ipynb](notebooks/00_walkthrough.ipynb) shows every pipeline step,
 from the raw USDA pull to the walk-forward scoreboard, with a table or chart for each.
 
+## Pipeline
+
+| Step | Script | Input → output |
+|---|---|---|
+| Cash bids | `03_build_silver.py` | USDA grain bids for 6 states (IL, IA, NE, SD, MN, IN; listed in `data/raw/usda_bids/manifest.csv`) → `data/clean/corn_bids_current.csv` |
+| May futures | `04_clean_futures.py` | `data/raw/may_futures.csv` → `data/clean/may_futures.csv` ($/bu) |
+| T-bill | `05_tbill_rates.py` | `data/raw/fred_dtb6.csv` → `data/clean/tbill_decision.csv` |
+| Database | `06_build_db.py` | the 3 clean CSVs → `data/clean/corn.db` (keys checked) |
+| Gold | `07_build_gold.py` | `corn.db` + `data/raw/storage_costs.csv` → `data/gold/gold_yearly.csv` (Illinois North/South Central for now) |
+| Charts | `08_charts.py` | gold → `outputs/scatter_gap.png`, `outputs/bars_by_year.png` |
+| Walk-forward | `09_walk_forward.py` | gold → `outputs/walk_forward_predictions.csv`, `outputs/scoreboard.csv` |
+
+Run in order 03 → 09 from the project folder (`06` and `07` need `--overwrite` to replace existing outputs).
+
 ## Plan
 
 - **Location:** one Central Illinois region (USDA report **3192**). See *To be determined*.
@@ -48,7 +62,7 @@ Store if        Target_hat > Hurdle
 
 | Data | Source | How collected | Used for |
 |---|---|---|---|
-| Cash bids | [USDA AMS MyMarketNews](https://mymarketnews.ams.usda.gov/) (MARS) API, report 3192 (Illinois Grain Bids) | API, one month per request | Cash price on Oct 15 and Apr 15 |
+| Cash bids | [USDA AMS MyMarketNews](https://mymarketnews.ams.usda.gov/) (MARS) API, state grain-bid reports: IL 3192 (Illinois Grain Bids), IA 2850, NE 3225, SD 3186, MN 3049, IN 3463; Oct/Apr, Oct 2020 to Apr 2026 (the API has no earlier data) | API, one month per request; files and checksums in `data/raw/usda_bids/manifest.csv` | Cash price on Oct 15 and Apr 15 (gold uses Illinois only for now) |
 | May corn futures | CBOT settlements (ZCK21-ZCK26), read from [Barchart](https://www.barchart.com/futures/quotes/ZCK26/overview) | 12 settlements (Oct 15 and Apr 15, 6 contracts) typed by hand as raw quotes (e.g. `583-2`) | Basis on both dates; hedge result |
 | Interest rate | [FRED, series DTB6](https://fred.stlouisfed.org/series/DTB6) (6-month T-bill, secondary market, discount basis) | Download | InterestCost |
 | Storage costs | [farmdoc daily](https://farmdocdaily.illinois.edu/2025/10/annual-cost-of-storing-us-corn-and-soybeans-since-1973.html) (physical storage cost series); on-farm low case from Iowa Farm Bureau | Typed by hand into `data/raw/storage_costs.csv`, with source per row | StorageCost (low / mid / high cases) |

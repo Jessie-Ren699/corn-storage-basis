@@ -1,6 +1,7 @@
 """Step 07: build the gold table gold_yearly from data/clean/corn.db.
 
-One row = one region x one decision year (2020-2025), Country Elevators only.
+One row = one region x one decision year (2020-2025), Illinois Country Elevators only
+(Illinois only for now: Iowa and South Dakota also have regions named North Central / South Central).
 
   gap_oct_cents    = (oct_futures - oct_cash) x 100              (X)
   gap_apr_cents    = (apr_futures - apr_cash) x 100
@@ -33,6 +34,7 @@ import pandas as pd
 
 DB = "data/clean/corn.db"
 CSV = "data/gold/gold_yearly.csv"
+STATE = "IL"                                # corn_bids has 6 states; gold uses Illinois only
 REGIONS = ("North Central", "South Central")
 BUYER_TYPE = "Country Elevators"
 YEARS = range(2020, 2026)
@@ -49,11 +51,11 @@ SELECT f.decision_year, r.region, f.date, b.cash_price, f.may_futures_price
 FROM may_futures f
 CROSS JOIN (SELECT ? AS region UNION ALL SELECT ?) r
 LEFT JOIN corn_bids b
-       ON b.date = f.date AND b.region = r.region AND b.buyer_type = ?
+       ON b.date = f.date AND b.state = ? AND b.region = r.region AND b.buyer_type = ?
 WHERE f.leg = ?
 """
 def leg(name, prefix):
-    df = pd.read_sql(LEG_SQL, con, params=(*REGIONS, BUYER_TYPE, name))
+    df = pd.read_sql(LEG_SQL, con, params=(*REGIONS, STATE, BUYER_TYPE, name))
     return df.rename(columns={"date": f"{prefix}_date", "cash_price": f"{prefix}_cash",
                               "may_futures_price": f"{prefix}_futures"})
 

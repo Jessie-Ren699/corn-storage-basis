@@ -2,7 +2,8 @@
 
 Tables:
   calendar        PK (date)                        every date 2020-01-01 .. 2026-12-31
-  corn_bids       PK (date, region, buyer_type)    FK date -> calendar(date)
+  corn_bids       PK (date, state, region, buyer_type, transport_mode)
+                                                   FK date -> calendar(date)
   may_futures     PK (date)                        FK date -> calendar(date)
   tbill_decision  PK (decision_date)               FK decision_date -> calendar(date)
 
@@ -29,6 +30,7 @@ CREATE TABLE calendar (
 
 CREATE TABLE corn_bids (
     date            TEXT NOT NULL REFERENCES calendar(date),
+    state           TEXT NOT NULL,            -- IL, IA, NE, SD, MN, IN
     commodity       TEXT,
     region          TEXT NOT NULL,
     buyer_type      TEXT NOT NULL,
@@ -40,8 +42,8 @@ CREATE TABLE corn_bids (
     grain_class     TEXT,
     grain_grade     TEXT,
     price_point     TEXT,
-    transport_mode  TEXT,
-    PRIMARY KEY (date, region, buyer_type)
+    transport_mode  TEXT NOT NULL,
+    PRIMARY KEY (date, state, region, buyer_type, transport_mode)
 );
 
 CREATE TABLE may_futures (
@@ -68,7 +70,8 @@ CREATE TABLE tbill_decision (
 
 # table -> (csv, primary key, FK column -> calendar.date, column types)
 TABLES = {
-    "corn_bids": ("data/clean/corn_bids_current.csv", ["date", "region", "buyer_type"], "date",
+    "corn_bids": ("data/clean/corn_bids_current.csv",
+                  ["date", "state", "region", "buyer_type", "transport_mode"], "date",
                   {"deliver_now": "bool", "cash_price": "real", "cash_price_low": "real",
                    "cash_price_high": "real"}),
     "may_futures": ("data/clean/may_futures.csv", ["date"], "date",

@@ -8,7 +8,7 @@ unless the column name ends in `_cents`. Blank values are NULL and never filled.
 
 | Table | One row = | Primary key | Built by |
 |---|---|---|---|
-| corn_bids_current | one region's cash bid from one buyer type on one day | (`date`, `region`, `buyer_type`) | `03_build_silver.py`; loaded into the db as `corn_bids` by `06_build_db.py` |
+| corn_bids_current | one region's cash bid from one buyer type, by one transport mode, on one day | (`date`, `state`, `region`, `buyer_type`, `transport_mode`) | `03_build_silver.py`; loaded into the db as `corn_bids` by `06_build_db.py` |
 | may_futures | one May corn futures settlement on one hedge date | `date` | `04_clean_futures.py`; loaded by `06_build_db.py` |
 | tbill_decision | the T-bill rate on one decision date | `decision_date` | `05_tbill_rates.py`; loaded by `06_build_db.py` |
 | calendar | one calendar day | `date` | `06_build_db.py` (generated) |
@@ -17,28 +17,32 @@ unless the column name ends in `_cents`. Blank values are NULL and never filled.
 
 ## corn_bids_current
 
-What local grain elevators and processors offered farmers for corn, by Illinois region
-and day. It comes from USDA MyMarketNews report 3192 (Illinois Grain Bids). It supplies
-the cash side of basis. 3,024 rows. The 8 empty `¢/Bu` rows were dropped (see
-`processing_log.md`).
+What local grain elevators and processors offered farmers for corn, by state, region
+and day. It comes from six USDA MyMarketNews state grain-bid reports: IL 3192 (Illinois Grain Bids),
+IA 2850, NE 3225, SD 3186, MN 3049 and IN 3463, Oct and Apr months, Oct 2020 to Apr 2026 (Indiana from
+Apr 2021). The raw files are listed in `data/raw/usda_bids/manifest.csv`. It supplies the cash side of
+basis. 9,935 rows (IL 3,024, IA 1,771, NE 1,750, SD 1,256, MN 255, IN 1,879). Only Yellow corn for
+delivery now is kept, and the 8 empty Illinois `¢/Bu` rows were dropped (see `processing_log.md`).
+The gold table uses Illinois only.
 
-**Primary key:** (`date`, `region`, `buyer_type`)
+**Primary key:** (`date`, `state`, `region`, `buyer_type`, `transport_mode`)
 
 | Column | Meaning |
 |---|---|
 | date | The day USDA reported the bids (USDA `report_date`). |
+| state | Which state report the bid comes from: `IL`, `IA`, `NE`, `SD`, `MN` or `IN`. Added by `03` from the manifest (not a USDA column). |
 | commodity | Always `Corn`; soybeans and wheat were filtered out. |
-| region | The Illinois trading region the bids come from (USDA `trade_loc`), e.g. North Central, South Central, Wabash. 12 regions. |
+| region | The Illinois trading region the bids come from (USDA `trade_loc`), e.g. North Central, South Central, Wabash. Region names repeat across states (Iowa and South Dakota also have a North Central), so always use it with `state`. IL 12, IA 6, NE 7, SD 5, MN 1, IN 9 regions. |
 | buyer_type | The kind of buyer posting the bid (USDA `delivery_point`): Country Elevators (local elevators that buy from farmers), Barge Loading Elevators (on the river, ship by barge), Mills and Processors (e.g. ethanol plants), Terminal Elevators. |
 | deliver_now | Spot vs. forward (USDA `current`). True = the elevator's bid for corn delivered now; False = a forward contract for later delivery. All rows are True because we kept only spot bids. Stored as 1 in the database. |
 | cash_price | The local cash price: the average bid posted by grain elevators in that region that day (USDA `avg_price`). It is an offer to buy, not a price for corn already delivered. It is NOT the futures price; cash minus futures is the basis. |
 | cash_price_low | The lowest bid among those elevators that day (USDA `price Min`). |
 | cash_price_high | The highest bid among those elevators that day (USDA `price Max`). |
 | price_unit | Always `$ Per Bushel`. |
-| grain_class | Always `Yellow`, which is regular field corn. |
+| grain_class | Always `Yellow`, which is regular field corn (the grade futures are quoted for). Indiana also reports White corn; those rows are filtered out. |
 | grain_grade | Always `US #2`, the standard quality grade that bids and futures are quoted for. |
 | price_point | `Delivered` (USDA `freight`): the price the farmer gets when they bring the grain to the buyer, so the farmer pays the transport. |
-| transport_mode | Every row is `Truck` because that's how the data came: farmers haul corn to elevators by truck. It is not a filter we applied. |
+| transport_mode | How the grain is delivered. `Truck` in every state except some Indiana bids (`Truck/Rail`: Ohio River barge and North terminal elevators). Part of the key, because Indiana's Ohio River barge elevators post a Truck and a Truck/Rail bid on the same day. It is not a filter. |
 
 ## may_futures
 
@@ -153,7 +157,7 @@ you open a connection, or they are not enforced.
 | Table (in corn.db) | Primary key | Foreign key |
 |---|---|---|
 | calendar | `date` | none |
-| corn_bids | (`date`, `region`, `buyer_type`) | `date` → `calendar(date)` |
+| corn_bids | (`date`, `state`, `region`, `buyer_type`, `transport_mode`) | `date` → `calendar(date)` |
 | may_futures | `date` | `date` → `calendar(date)` |
 | tbill_decision | `decision_date` | `decision_date` → `calendar(date)` |
 | gold_yearly | (`decision_year`, `region`) | `oct_date`, `apr_date` → `calendar(date)` |
@@ -164,17 +168,18 @@ you open a connection, or they are not enforced.
                /           |             \
        0..many/            | 0..1         \ 0..1
      corn_bids          may_futures     tbill_decision
-  (date, region,          (date)        (decision_date)
-   buyer_type)
+  (date, state, region,   (date)        (decision_date)
+   buyer_type,
+   transport_mode)
 ```
 
-- **calendar → corn_bids** (one-to-many): a date has zero or many bids, one per region
-  and buyer type. Weekends and holidays have none.
+- **calendar → corn_bids** (one-to-many): a date has zero or many bids, one per state, region,
+  buyer type and transport mode. Weekends and holidays have none.
 - **calendar → may_futures** (one-to-zero-or-one): only the 12 Oct/Apr hedge dates.
 - **calendar → tbill_decision** (one-to-zero-or-one): only the 6 Oct decision dates.
 - **calendar → gold_yearly** (via `oct_date` and `apr_date`): each gold row points to
   one Oct and one Apr date.
 - **Joining one decision year:** the Oct leg of `may_futures.date` = `tbill_decision.decision_date`
-  = `corn_bids.date` gives the Oct cash price, futures and rate. The Apr leg joins
+  = `corn_bids.date` (with `state` = IL) gives the Oct cash price, futures and rate. The Apr leg joins
   `may_futures.date` to `corn_bids.date`. Both legs share `decision_year`. This is how
   `07_build_gold.py` builds `gold_yearly`.
